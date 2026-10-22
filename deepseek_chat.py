@@ -401,6 +401,9 @@ def get_history(session_id):
 def create_session():
     """新建空会话, 返回会话对象。"""
     d = http_json("POST", "/api/v0/chat_session/create", {"agent": "chat"})
+    # 2026-10: 接口改版, 会话对象挪到了 biz_data.chat_session 里(兼容旧结构)
+    if isinstance(d, dict):
+        return d.get("chat_session") or d
     return d
 
 
@@ -723,9 +726,13 @@ def cmd_new(text, thinking, search, files=None):
 
 def _resolve_parent(session_id):
     """取会话当前最后一条消息 id(作为下一条消息的 parent)。"""
+    # 2026-10: 会话列表接口更新后不再返回 current_message_id 字段,
+    # 列表命中但拿不到 id 时, 退回查历史取最后一条
     for s in list_sessions(50):
         if s.get("id") == session_id:
-            return s.get("current_message_id")
+            if s.get("current_message_id") is not None:
+                return s["current_message_id"]
+            break
     hist = get_history(session_id)
     return hist[-1]["message_id"] if hist else None
 
